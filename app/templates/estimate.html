@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Estimated Price</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background: #0d0d0d;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: "Inter", sans-serif;
+      color: white;
+    }
+
+    .card {
+      padding: 40px 50px;
+      background: #0b0b0b;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+      text-align: center;
+      width: 420px;
+    }
+
+    h1 {
+      color: #c9a34b;
+      margin-bottom: 20px;
+    }
+
+    .result-box {
+      margin-top: 10px;
+      padding: 20px;
+      background: white;
+      color: #0b0b0b;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 24px;
+    }
+
+    .controls {
+      margin-top: 18px;
+      display:flex;
+      justify-content:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    a.btn {
+      margin-top: 20px;
+      display: inline-block;
+      padding: 10px 16px;
+      background: #c9a34b;
+      color: #000;
+      border-radius: 10px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    a.secondary {
+      background: transparent;
+      color: #c9a34b;
+      border: 1px solid rgba(201,163,75,0.18);
+    }
+
+    .note { margin-top:8px;color:#bfb6a8;font-size:13px; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>Estimated Price</h1>
+
+    <!-- Prediction result -->
+    <div class="result-box" role="status" aria-live="polite">
+      {{ prediction }}
+    </div>
+
+    <div class="controls">
+      <a class="btn" href="{{ url_for('home') }}">Back to Home</a>
+
+      {# If total_area was provided, pass it to the split page via query param #}
+      {% if total_area %}
+        <a class="btn" href="{{ url_for('split') }}?area={{ total_area|int }}">Add SQFT Split-up</a>
+      {% else %}
+        <a class="btn" href="{{ url_for('split') }}">Add SQFT Split-up</a>
+      {% endif %}
+    </div>
+
+    <div class="note">Tip: use the split-up page to allocate the total built-up area across rooms (bedrooms, kitchen, living, bathrooms, balcony, etc.).</div>
+  </div>
+
+</body>
+</html>

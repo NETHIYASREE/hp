@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Area Split-up</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: #0d0d0d;
+      --card: #0b0b0b;
+      --gold: #c9a34b;
+      --muted: #bfb6a8;
+      --white: #fff;
+      --radius: 12px;
+    }
+    body{
+      background:linear-gradient(180deg,#070707,#0d0d0d);
+      color:var(--white);
+      font-family:"Inter",sans-serif;
+      margin:0;
+      padding:28px;
+      display:flex;
+      justify-content:center;
+    }
+    .card{
+      width:920px;
+      max-width:96%;
+      background:var(--card);
+      padding:22px;
+      border-radius:14px;
+      box-shadow:0 14px 40px rgba(0,0,0,0.6);
+    }
+    h1{margin:0 0 8px;color:var(--gold);}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+    .info{color:var(--muted);font-size:14px;}
+    .presets{display:flex;gap:8px;}
+    .presets button{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      padding:8px 10px;
+      border-radius:8px;
+      color:var(--white);
+      cursor:pointer;
+    }
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px;}
+    .room{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;}
+    .room label{display:block;font-weight:600;margin-bottom:6px;}
+    .room input[type="number"]{
+      width:100%;
+      padding:10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background:transparent;
+      color:var(--white);
+      box-sizing:border-box;
+    }
+    .summary{
+      margin-top:14px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .summary .left{color:var(--muted);}
+    .buttons{display:flex;gap:8px;}
+    button.primary{
+      background:linear-gradient(90deg,var(--gold),#b88e3a);
+      color:#0b0b0b;
+      padding:10px 14px;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      font-weight:700;
+    }
+    button.ghost{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--white);
+      padding:10px 12px;
+      border-radius:8px;
+      cursor:pointer;
+    }
+    .warn{color:#ffb4b4;font-size:13px;}
+    table{width:100%;margin-top:12px;border-collapse:collapse;}
+    table th, table td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;}
+    .small{font-size:13px;color:var(--muted);}
+    a.primary{
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px 14px;
+      border-radius:10px;
+      background:linear-gradient(90deg,var(--gold),#b88e3a);
+      color:#0b0b0b;
+      font-weight:700;
+      cursor:pointer;
+    }
+    @media (max-width:680px){.grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="card" role="main">
+    <div class="top">
+      <div>
+        <h1>SQFT Split-up</h1>
+        <div class="info">Allocate the total built-up area across rooms. Editable — use Normalize to match totals exactly.</div>
+      </div>
+      <div class="presets">
+        <button id="preset1">1 BHK</button>
+        <button id="preset2">2 BHK</button>
+        <button id="preset3">3 BHK</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px" class="small">Total built-up area: <strong id="totalAreaDisplay">{{ total_area|int }}</strong> sq.ft</div>
+
+    <div style="margin-top:12px">
+      <label class="small">Number of Bedrooms</label>
+      <input type="number" id="numBeds" value="2" min="0" max="10" style="width:100px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--white)">
+    </div>
+
+    <div class="grid" id="roomsGrid" style="margin-top:14px;">
+      <!-- Rooms inputs created by JS -->
+    </div>
+
+    <div class="summary">
+      <div class="left">
+        <div>Total allocated: <strong id="allocated">0</strong> sq.ft</div>
+        <div class="small">Remaining: <span id="remaining">0</span> sq.ft</div>
+        <div id="warn" class="warn" style="display:none">Allocated area does not equal total area. Use Normalize to scale allocations.</div>
+      </div>
+
+      <div class="buttons">
+        <button id="normalizeBtn" class="ghost">Normalize to Total</button>
+        <button id="downloadBtn" class="primary">Download CSV</button>
+        <button id="blueprintBtn" class="primary">Generate Blueprint</button>
+        <a id="backHome" class="primary" href="{{ url_for('home') }}">Back Home</a>
+      </div>
+    </div>
+
+    <table id="splitTable" style="margin-top:14px">
+      <thead>
+        <tr><th>Room</th><th>Area (sq.ft)</th></tr>
+      </thead>
+      <tbody>
+        <!-- Filled by JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // --- Variables and defaults ---
+    const TOTAL_AREA = Number({{ total_area|round(0, 'floor') }}) || 1000;
+    document.getElementById('totalAreaDisplay').innerText = TOTAL_AREA;
+
+    const DEFAULTS = {
+      living: 25,
+      bedroom_total: 30,
+      kitchen: 12,
+      bathroom_total: 10,
+      balcony: 8,
+      others: 15
+    };
+
+    let split = { living:0, bedrooms:[], kitchen:0, bathrooms:[], balcony:0, others:0 };
+
+    const numBedsInput = document.getElementById('numBeds');
+    const grid = document.getElementById('roomsGrid');
+    const tableBody = document.querySelector('#splitTable tbody');
+    const allocatedEl = document.getElementById('allocated');
+    const remainingEl = document.getElementById('remaining');
+    const warnEl = document.getElementById('warn');
+
+    // --- Initialize rooms ---
+    function initRooms(numBeds=2, numBaths=Math.max(1, Math.floor(numBeds/1.5))){
+      split.bedrooms = new Array(Math.max(0,numBeds)).fill(0);
+      split.bathrooms = new Array(Math.max(1,numBaths)).fill(0);
+      computeInitial();
+      renderInputs();
+      renderTable();
+      updateSummary();
+    }
+
+    // --- Compute initial room values ---
+    function computeInitial(){
+      split.living = Math.round(TOTAL_AREA*DEFAULTS.living/100);
+      split.kitchen = Math.round(TOTAL_AREA*DEFAULTS.kitchen/100);
+      split.balcony = Math.round(TOTAL_AREA*DEFAULTS.balcony/100);
+      split.others = Math.round(TOTAL_AREA*DEFAULTS.others/100);
+
+      const nb = split.bedrooms.length || 1;
+      const bPer = (DEFAULTS.bedroom_total/nb)/100;
+      split.bedrooms = split.bedrooms.map(()=>Math.round(TOTAL_AREA*bPer));
+
+      const nbath = split.bathrooms.length || 1;
+      const bathPer = (DEFAULTS.bathroom_total/nbath)/100;
+      split.bathrooms = split.bathrooms.map(()=>Math.round(TOTAL_AREA*bathPer));
+    }
+
+    // --- Render room input fields ---
+    function renderInputs(){
+      grid.innerHTML='';
+      grid.appendChild(createRoomNode('Living Room','living'));
+      split.bedrooms.forEach((v,i)=>grid.appendChild(createRoomNode(`Bedroom ${i+1}`,`bedroom-${i}`)));
+      split.bathrooms.forEach((v,i)=>grid.appendChild(createRoomNode(`Bathroom ${i+1}`,`bathroom-${i}`)));
+      grid.appendChild(createRoomNode('Kitchen','kitchen'));
+      grid.appendChild(createRoomNode('Balcony','balcony'));
+      grid.appendChild(createRoomNode('Others','others'));
+    }
+
+    function createRoomNode(labelText,key){
+      const div=document.createElement('div'); div.className='room';
+      const label=document.createElement('label'); label.innerText=labelText;
+      const input=document.createElement('input');
+      input.type='number'; input.min=0; input.step=1; input.value=getRoomValue(key);
+      input.addEventListener('input',()=>{ setRoomValue(key,Number(input.value)||0); renderTable(); updateSummary(); });
+      div.appendChild(label); div.appendChild(input); return div;
+    }
+
+    function getRoomValue(key){
+      if(key==='living') return split.living;
+      if(key==='kitchen') return split.kitchen;
+      if(key==='balcony') return split.balcony;
+      if(key==='others') return split.others;
+      if(key.startsWith('bedroom-')) return split.bedrooms[Number(key.split('-')[1])]||0;
+      if(key.startsWith('bathroom-')) return split.bathrooms[Number(key.split('-')[1])]||0;
+      return 0;
+    }
+
+    function setRoomValue(key,val){
+      if(key==='living') split.living=val;
+      else if(key==='kitchen') split.kitchen=val;
+      else if(key==='balcony') split.balcony=val;
+      else if(key==='others') split.others=val;
+      else if(key.startsWith('bedroom-')) split.bedrooms[Number(key.split('-')[1])]=val;
+      else if(key.startsWith('bathroom-')) split.bathrooms[Number(key.split('-')[1])]=val;
+    }
+
+    // --- Table rendering ---
+    function renderTable(){
+      tableBody.innerHTML='';
+      appendRow('Living Room',split.living);
+      split.bedrooms.forEach((v,i)=>appendRow(`Bedroom ${i+1}`,v));
+      appendRow('Kitchen',split.kitchen);
+      split.bathrooms.forEach((v,i)=>appendRow(`Bathroom ${i+1}`,v));
+      appendRow('Balcony',split.balcony);
+      appendRow('Others',split.others);
+    }
+
+    function appendRow(name,value){
+      const tr=document.createElement('tr');
+      const td1=document.createElement('td'); td1.innerText=name;
+      const td2=document.createElement('td'); td2.innerText=value;
+      tr.appendChild(td1); tr.appendChild(td2); tableBody.appendChild(tr);
+    }
+
+    function updateSummary(){
+      const allocated=split.living+sumArray(split.bedrooms)+split.kitchen+sumArray(split.bathrooms)+split.balcony+split.others;
+      allocatedEl.innerText=allocated;
+      remainingEl.innerText=TOTAL_AREA-allocated;
+      warnEl.style.display=(allocated!==TOTAL_AREA)?'block':'none';
+      const inputs=grid.querySelectorAll('input[type="number"]');
+      inputs.forEach(inp=>{
+        const label=inp.previousElementSibling?.innerText;
+        if(!label) return;
+        if(label==='Living Room') inp.value=split.living;
+        else if(label.startsWith('Bedroom')) inp.value=split.bedrooms[Number(label.split(' ')[1])-1];
+        else if(label.startsWith('Bathroom')) inp.value=split.bathrooms[Number(label.split(' ')[1])-1];
+        else if(label==='Kitchen') inp.value=split.kitchen;
+        else if(label==='Balcony') inp.value=split.balcony;
+        else if(label==='Others') inp.value=split.others;
+      });
+    }
+
+    function sumArray(arr){return arr.reduce((a,b)=>a+(Number(b)||0),0);}
+
+    function normalize(){
+      const currentTotal=split.living+sumArray(split.bedrooms)+split.kitchen+sumArray(split.bathrooms)+split.balcony+split.others;
+      if(currentTotal<=0){ computeInitial(); }
+      else{
+        const scale=TOTAL_AREA/currentTotal;
+        split.living=Math.round(split.living*scale);
+        split.kitchen=Math.round(split.kitchen*scale);
+        split.balcony=Math.round(split.balcony*scale);
+        split.others=Math.round(split.others*scale);
+        split.bedrooms=split.bedrooms.map(v=>Math.round(v*scale));
+        split.bathrooms=split.bathrooms.map(v=>Math.round(v*scale));
+        let after=split.living+sumArray(split.bedrooms)+split.kitchen+sumArray(split.bathrooms)+split.balcony+split.others;
+        split.others+=TOTAL_AREA-after;
+      }
+      renderTable(); updateSummary();
+    }
+
+    function downloadCSV(){
+      const rows=[['Room','Area_sqft'],['Living Room',split.living]];
+      split.bedrooms.forEach((v,i)=>rows.push([`Bedroom ${i+1}`,v]));
+      rows.push(['Kitchen',split.kitchen]);
+      split.bathrooms.forEach((v,i)=>rows.push([`Bathroom ${i+1}`,v]));
+      rows.push(['Balcony',split.balcony],['Others',split.others]);
+      const csvContent=rows.map(r=>r.join(',')).join('\n');
+      const blob=new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`split_${TOTAL_AREA}sqft.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    // --- Presets ---
+    document.getElementById('preset1').addEventListener('click',()=>{ numBedsInput.value=1; initRooms(1,1); });
+    document.getElementById('preset2').addEventListener('click',()=>{ numBedsInput.value=2; initRooms(2,2); });
+    document.getElementById('preset3').addEventListener('click',()=>{ numBedsInput.value=3; initRooms(3,2); });
+    numBedsInput.addEventListener('change',()=>{
+      const nb=Math.max(0,Math.floor(Number(numBedsInput.value)||0));
+      const nbath=Math.max(1,Math.round(nb/1.5));
+      initRooms(nb,nbath);
+    });
+
+    document.getElementById('normalizeBtn').addEventListener('click',normalize);
+    document.getElementById('downloadBtn').addEventListener('click',downloadCSV);
+
+    // --- Generate blueprint ---
+    document.getElementById('blueprintBtn').addEventListener('click',()=>{
+      // Navigate to blueprint page
+      window.location.href='/blueprint';
+    });
+
+    // --- Initial load ---
+    initRooms(Number(numBedsInput.value||2),Math.max(1,Math.round((Number(numBedsInput.value||2))/1.5)));
+  </script>
+</body>
+</html>

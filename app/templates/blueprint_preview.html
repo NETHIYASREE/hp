@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Blueprint Generator — Squarified Treemap</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#070707;--card:#0f0f0f;--muted:#bfb6a8;--gold:#c9a34b}
+  body{font-family:Inter,system-ui,Arial,sans-serif;background:linear-gradient(90deg,#070707,#0f0f0f);color:#fff;margin:18px}
+  .wrap{max-width:1400px;margin:0 auto}
+  .card{background:var(--card);padding:18px;border-radius:12px;box-shadow:0 18px 36px rgba(0,0,0,0.6)}
+  h1{margin:0;color:var(--gold)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}
+  textarea,input,select,button{font-family:inherit}
+  textarea{width:100%;height:140px;background:#070707;border-radius:8px;padding:10px;color:#fff;border:1px solid rgba(255,255,255,0.04)}
+  input,select{padding:8px;border-radius:8px;background:#0b0b0b;border:1px solid rgba(255,255,255,0.04);color:#fff}
+  button.primary{padding:8px 12px;border-radius:8px;border:none;background:linear-gradient(90deg,var(--gold),#b88e3a);color:#000;font-weight:700;cursor:pointer}
+  .layout{display:flex;gap:12px}
+  .left{flex:1;min-width:320px}
+  .right{flex:1.6;min-width:520px}
+  .canvasWrap{
+    background:#030303;
+    padding:0;
+    border-radius:10px;
+    border:1px solid rgba(255,255,255,0.03);
+  }
+  .primary {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(90deg, var(--gold), #b88e3a);
+  color: #000;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none; /* ensure no underline */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+  svg{width:100%; display:block; border-radius:8px;}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;color:#ddd}
+  .muted{color:var(--muted);font-size:13px}
+  @media (max-width:900px){ .layout{flex-direction:column} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Blueprint Generator — Squarified Treemap</h1>
+      <div class="muted">Paste JSON (array of {room,area}) then click <strong>Generate Blueprint</strong>. The treemap fills the canvas.</div>
+
+      <div class="controls">
+        <button id="useExample" class="primary">Load Example</button>
+        <button id="generateBtn" class="primary">Generate Blueprint</button>
+        <button id="downloadSvg" class="primary">Download SVG</button>
+        <label style="margin-left:auto;color:var(--muted)">Canvas width</label>
+        <select id="canvasW"><option value="900">900</option><option value="1100" selected>1100</option><option value="1300">1300</option></select>
+      </div>
+
+      <!-- Back/Home button -->
+      <div class="controls" style="margin-bottom:12px;">
+        <a href="/" class="primary" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">
+          Back Home
+        </a>
+      </div>
+
+      <div class="layout">
+        <div class="left">
+          <label class="muted">Rooms JSON (array of {"room": "...", "area": 123})</label>
+          <textarea id="roomsInput">[
+  {"room":"Living Room","area":500},
+  {"room":"Bedroom 1","area":300},
+  {"room":"Bedroom 2","area":300},
+  {"room":"Others","area":300},
+  {"room":"Kitchen","area":240},
+  {"room":"Bathroom 1","area":200},
+  {"room":"Balcony","area":160}
+]</textarea>
+          <div class="muted" style="margin-top:8px">Tip: Sort order doesn't matter. Larger rooms will appear larger; squarified layout reduces long skinny boxes.</div>
+        </div>
+
+        <div class="right">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <label class="muted">SVG Preview</label>
+            <div id="totArea" class="muted">Total: —</div>
+          </div>
+
+          <div class="canvasWrap">
+            <svg id="blueprintSvg" viewBox="0 0 1100 700" xmlns="http://www.w3.org/2000/svg" aria-label="Blueprint preview"></svg>
+          </div>
+          
+          <table id="legend">
+            <thead><tr><th>Room</th><th>Area (sq.ft)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ---------- helpers ---------- */
+function parseRooms(text){
+  try{
+    const arr = JSON.parse(text);
+    if(!Array.isArray(arr)) throw new Error('JSON should be an array');
+    return arr.map(x=>({ room: String(x.room), area: Number(x.area)||0 })).filter(r=>r.area>0);
+  }catch(e){
+    alert('Invalid JSON: '+e.message);
+    return null;
+  }
+}
+
+/* ---------- squarified treemap ---------- */
+function scaleAreas(nodes, rect){
+  const totalArea = nodes.reduce((s,n)=>s+n.area,0) || 1;
+  const pxTotal = Math.max(1, rect.w * rect.h);
+  const scale = pxTotal / totalArea;
+  return nodes.map(n => ({ ...n, size: Math.max(1, n.area * scale) }));
+}
+
+function worstAspect(row, side){
+  if(row.length===0) return Infinity;
+  let maxSize = Math.max(...row), minSize = Math.min(...row);
+  const sum = row.reduce((s,x)=>s+x,0);
+  const a = (side*side*maxSize)/(sum*sum);
+  const b = (sum*sum)/(side*side*minSize);
+  return Math.max(a,b);
+}
+
+function layoutRow(rect, rowNodes, horizontal){
+  const sum = rowNodes.reduce((s,n)=>s+n.size,0);
+  const placed = [];
+  if(horizontal){
+    const rowH = sum / rect.w;
+    let x = rect.x;
+    for(const n of rowNodes){
+      const w = n.size / rowH;
+      placed.push({ node: n, x: x, y: rect.y, w: w, h: rowH });
+      x += w;
+    }
+    return { placed, remainder: { x: rect.x, y: rect.y + rowH, w: rect.w, h: rect.h - rowH } };
+  } else {
+    const rowW = sum / rect.h;
+    let y = rect.y;
+    for(const n of rowNodes){
+      const h = n.size / rowW;
+      placed.push({ node: n, x: rect.x, y: y, w: rowW, h: h });
+      y += h;
+    }
+    return { placed, remainder: { x: rect.x + rowW, y: rect.y, w: rect.w - rowW, h: rect.h } };
+  }
+}
+
+function squarify(nodes, rect){
+  const items = nodes.slice();
+  const result = [];
+  let row = [];
+  let side = Math.min(rect.w, rect.h);
+
+  while(items.length > 0){
+    const next = items[0];
+    const curSizes = row.map(r => r.size);
+    const newSizes = curSizes.concat([next.size]);
+    const wCur = worstAspect(curSizes, side);
+    const wNew = worstAspect(newSizes, side);
+
+    if(row.length === 0 || wNew <= wCur){
+      row.push(items.shift());
+    } else {
+      const horizontal = rect.w >= rect.h;
+      const laid = layoutRow(rect, row, horizontal);
+      result.push(...laid.placed);
+      rect = laid.remainder;
+      row = [];
+      side = Math.min(rect.w, rect.h);
+      if(!(rect.w > 0 && rect.h > 0)) break;
+    }
+  }
+
+  if(row.length > 0 && rect.w > 0 && rect.h > 0){
+    const horizontal = rect.w >= rect.h;
+    const laid = layoutRow(rect, row, horizontal);
+    result.push(...laid.placed);
+  }
+
+  return result;
+}
+
+function layoutTreemap(nodes, rect){
+  const sorted = nodes.slice().sort((a,b)=>b.area - a.area);
+  const scaled = scaleAreas(sorted, rect);
+  return squarify(scaled, rect);
+}
+
+/* ---------- rendering ---------- */
+function colorForIndex(i){
+  const palette = ['#0f3b36','#13413f','#2a6f64','#4b8f7f','#8aa29a','#8c5a18','#c18b2d','#6b3b1f','#4a2940','#3b1830'];
+  return palette[i % palette.length];
+}
+
+function renderBlueprint(rooms, canvasW=1100){
+  const svg = document.getElementById('blueprintSvg');
+  const canvasH = Math.round(canvasW * 0.64);
+
+  svg.style.height = canvasH + "px";
+  svg.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+  const total = rooms.reduce((s,r)=>s+r.area,0);
+  document.getElementById('totArea').innerText = 'Total: ' + total + ' sq.ft';
+  const legendBody = document.querySelector('#legend tbody'); legendBody.innerHTML = '';
+
+  const padding = 6;
+  const rect = { x: padding, y: padding, w: canvasW - padding*2, h: canvasH - padding*2 };
+  const laid = layoutTreemap(rooms, rect);
+
+  laid.forEach((r,i) => {
+    const color = colorForIndex(i);
+
+    const outer = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    outer.setAttribute('x', Math.round(r.x));
+    outer.setAttribute('y', Math.round(r.y));
+    outer.setAttribute('width', Math.max(1, Math.round(r.w)));
+    outer.setAttribute('height', Math.max(1, Math.round(r.h)));
+    outer.setAttribute('rx', 8);
+    outer.setAttribute('fill', color);
+    outer.setAttribute('fill-opacity', 0.12);
+    outer.setAttribute('stroke', '#c9a34b');
+    outer.setAttribute('stroke-width', 1.8);
+    svg.appendChild(outer);
+
+    const overlay = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    overlay.setAttribute('x', Math.round(r.x + 4));
+    overlay.setAttribute('y', Math.round(r.y + 4));
+    overlay.setAttribute('width', Math.max(1, Math.round(r.w - 8)));
+    overlay.setAttribute('height', Math.max(1, Math.round(r.h - 8)));
+    overlay.setAttribute('rx', 6);
+    overlay.setAttribute('fill', '#070707');
+    overlay.setAttribute('fill-opacity', 0.25);
+    svg.appendChild(overlay);
+
+    const minSide = Math.min(r.w, r.h);
+    const mainSize = Math.max(10, Math.min(16, Math.floor(minSide / 12)));
+    const subSize = Math.max(9, Math.min(12, Math.floor(minSide / 16)));
+
+    const name = document.createElementNS('http://www.w3.org/2000/svg','text');
+    name.setAttribute('x', r.x + 8);
+    name.setAttribute('y', r.y + 8 + mainSize/2);
+    name.setAttribute('font-size', mainSize);
+    name.setAttribute('fill', '#ffffff');
+    name.setAttribute('font-weight', 700);
+    name.textContent = r.node.room;
+    svg.appendChild(name);
+
+    const areaText = document.createElementNS('http://www.w3.org/2000/svg','text');
+    areaText.setAttribute('x', r.x + 8);
+    areaText.setAttribute('y', r.y + 8 + mainSize/2 + mainSize + 4);
+    areaText.setAttribute('font-size', subSize);
+    areaText.setAttribute('fill', '#e6e6e6');
+    areaText.textContent = Math.round(r.node.area) + ' sqft';
+    svg.appendChild(areaText);
+
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.textContent = r.node.room;
+    const td2 = document.createElement('td'); td2.textContent = Math.round(r.node.area);
+    tr.appendChild(td1); tr.appendChild(td2);
+    legendBody.appendChild(tr);
+  });
+
+  const info = document.createElementNS('http://www.w3.org/2000/svg','text');
+  info.setAttribute('x', 8);
+  info.setAttribute('y', canvasH - 6);
+  info.setAttribute('font-size', 11);
+  info.setAttribute('fill', '#bfb6a8');
+  info.textContent = `Canvas ${canvasW}×${canvasH} — total ${total} sqft`;
+  svg.appendChild(info);
+}
+
+/* ---------- download svg ---------- */
+function downloadSvgFile(filename='blueprint.svg'){
+  const svg = document.getElementById('blueprintSvg');
+  const serializer = new XMLSerializer();
+  const source = serializer.serializeToString(svg);
+  const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+}
+
+/* ---------- wiring ---------- */
+document.getElementById('generateBtn').addEventListener('click', () => {
+  const text = document.getElementById('roomsInput').value;
+  const rooms = parseRooms(text);
+  if(!rooms) return;
+  const canvasW = Number(document.getElementById('canvasW').value) || 1100;
+  renderBlueprint(rooms, canvasW);
+});
+
+document.getElementById('useExample').addEventListener('click', () => {
+  document.getElementById('roomsInput').value = `[{"room":"Living Room","area":500},{"room":"Bedroom 1","area":300},{"room":"Bedroom 2","area":300},{"room":"Others","area":300},{"room":"Kitchen","area":240},{"room":"Bathroom 1","area":200},{"room":"Balcony","area":160}]`;
+});
+
+document.getElementById('downloadSvg').addEventListener('click', () => downloadSvgFile('blueprint.svg'));
+</script>
+</body>
+</html>

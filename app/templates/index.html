@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>House Price Prediction</title>
+
+  <!-- Google font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg-dark: #050505;
+      --panel: #0b0b0b;
+      --muted: #bfb6a8;
+      --gold: #c9a34b;
+      --white: #ffffff;
+      --accent: rgba(201,163,75,0.06);
+      --radius: 14px;
+      --soft-shadow: 0 12px 30px rgba(0,0,0,0.6);
+    }
+
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#070707 0%, #0d0d0d 100%);font-family:"Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:var(--white);-webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+
+    /* animated background subtle moving shapes (keeps black/gold theme) */
+    .bg-anim{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+    .bg-anim span{position:absolute;display:block;border-radius:50%;opacity:0.06;background:var(--gold);filter:blur(36px);animation:float 18s linear infinite}
+    .bg-anim span.s1{width:420px;height:420px;left:-80px;top:-60px;animation-duration:20s}
+    .bg-anim span.s2{width:280px;height:280px;right:-60px;top:120px;animation-duration:24s}
+    .bg-anim span.s3{width:180px;height:180px;left:20%;bottom:-80px;animation-duration:22s}
+    @keyframes float{0%{transform:translateY(0) translateX(0) scale(1)}50%{transform:translateY(-60px) translateX(30px) scale(1.05)}100%{transform:translateY(0) translateX(0) scale(1)}}
+
+    .wrap{position:relative;z-index:2;max-width:980px;margin:48px auto;padding:28px}
+
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:54px;height:54px;border-radius:10px;background:linear-gradient(180deg,var(--gold),#7f5f2a);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--panel);font-size:18px}
+    h1.app-title{margin:0;font-size:18px;letter-spacing:0.6px}
+    .nav{display:flex;gap:12px}
+    .nav button{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--white);padding:8px 12px;border-radius:10px;cursor:pointer}
+    .nav button.active{background:linear-gradient(90deg,var(--gold),#b88e3a);color:var(--panel);border:none}
+
+    /* SPLASH / HERO page */
+    .hero{min-height:64vh;display:grid;place-items:center;text-align:center;padding:40px 16px;}
+    .hero-card{background:linear-gradient(180deg, rgba(201,163,75,0.03), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:40px 50px;border-radius:18px;box-shadow:var(--soft-shadow);max-width:760px;}
+    .hero-title{font-size:36px;margin:0 0 12px;color:var(--white);font-weight:700;letter-spacing:-1px;opacity:0;animation:fadeUp 900ms ease forwards 200ms}
+    .hero-sub{margin:8px 0 18px;color:var(--muted);opacity:0;animation:fadeUp 900ms ease forwards 350ms}
+    .start-btn{background:linear-gradient(90deg,var(--gold),#b88e3a);color:var(--panel);border:none;padding:14px 22px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 10px 30px rgba(201,163,75,0.12);transform:translateY(12px);opacity:0;animation:fadeUp 900ms ease forwards 500ms}
+
+    @keyframes fadeUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+    /* Card for form */
+    .card{background:linear-gradient(180deg,var(--panel),#080808);border-radius:16px;padding:20px;border:1px solid rgba(255,255,255,0.03);box-shadow:var(--soft-shadow);max-width:820px;margin:20px auto}
+
+    .steps{display:grid;grid-template-columns:1fr 3fr;gap:16px;align-items:start}
+    .step-list{padding:12px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border-radius:12px}
+    .step-list ol{list-style:none;padding:0;margin:0}
+    .step-list li{padding:10px;border-radius:8px;margin-bottom:8px;color:var(--muted);font-size:13px}
+    .step-list li.active{background:rgba(201,163,75,0.06);color:var(--gold);font-weight:700;border-left:3px solid var(--gold)}
+
+    .form-area{padding:10px}
+    .form-step{display:none;animation:slideIn 360ms ease both}
+    .form-step.active{display:block}
+    @keyframes slideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+
+    label{display:block;margin-bottom:8px;font-weight:600;font-size:13px;color:var(--white)}
+
+    /* Custom select styling: black background, white text, gold arrow */
+    .select-wrap{position:relative}
+    select{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding:12px 42px 12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg,#0b0b0b,#0a0a0a);color:var(--white);font-size:14px;width:100%;box-sizing:border-box}
+    .select-wrap::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--gold);font-size:16px;pointer-events:none}
+    select:focus{outline:none;box-shadow:0 0 0 4px rgba(201,163,75,0.06);border-color:var(--gold)}
+    option{background: #0b0b0b;color:var(--white)}
+    select::-ms-expand{display:none}
+
+    /* scrollbar colored gold on large step list */
+    .step-list{max-height:480px;overflow:auto}
+    .step-list::-webkit-scrollbar{width:10px}
+    .step-list::-webkit-scrollbar-track{background:transparent}
+    .step-list::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--gold),#b88e3a);border-radius:10px}
+
+    input[type="number"]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--white);box-sizing:border-box;font-size:14px}
+
+    .controls{display:flex;justify-content:space-between;gap:12px;margin-top:18px}
+    .btn{padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,var(--gold),#b88e3a);color:var(--panel);border:none;font-weight:700}
+    
+
+    .result-box{margin-top:18px;padding:16px;border-radius:10px;background:linear-gradient(180deg,rgba(201,163,75,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);display:flex;align-items:center;gap:14px}
+    .result-number{background:var(--white);padding:10px 14px;border-radius:8px;font-weight:800;color:var(--panel)}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+
+    /* hero image placeholder */
+    .hero-image{margin-top:18px;text-align:center}
+    .hero-image img{max-width:100%;height:auto;border-radius:12px;border:1px solid rgba(255,255,255,0.04)}
+
+    /* Wrap number inputs to show custom gold arrows */
+    .number-wrap {
+      position: relative;
+      width: 100%;
+      display: inline-block;
+    }
+
+    /* Hide native arrows for WebKit */
+    .number-wrap input[type="number"]::-webkit-inner-spin-button,
+    .number-wrap input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .number-wrap input[type="number"] {
+      -moz-appearance: textfield; /* Firefox */
+      width: 100%;
+      padding: 12px 38px 12px 14px; /* space for arrows */
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: transparent;
+      color: var(--white);
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    /* If script injects arrow-box, style it */
+    .number-wrap .arrow-box {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      height: 26px;
+      justify-content: space-between;
+      cursor: default;
+      user-select: none;
+    }
+    .number-wrap .arrow-box button {
+      display: block;
+      border: none;
+      background: transparent;
+      color: var(--gold);
+      font-size: 12px;
+      line-height: 12px;
+      padding: 0;
+      width: 22px;
+      height: 12px;
+      text-align: center;
+      cursor: pointer;
+    }
+  
+    .number-wrap .arrow-box button:active { transform: translateY(1px); }
+    .number-wrap .arrow-box button[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+
+    @media (max-width:880px){.steps{grid-template-columns:1fr;}.step-list{display:none}}
+  </style>
+</head>
+<body>
+ 
+
+
+
+
+  <div class="bg-anim" aria-hidden="true">
+    <span class="s1"></span>
+    <span class="s2"></span>
+    <span class="s3"></span>
+  </div>
+
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo">HP</div>
+        <div>
+          <h1 class="app-title">House Price Prediction</h1>
+          <div style="font-size:12px;color:var(--muted)">Professional · Black · Gold · White</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <button id="navHome" class="active">Home</button>
+        <button id="navStart">Start Prediction</button>
+      </nav>
+    </header>
+
+    <!-- HERO / Welcome page (only this on first page) -->
+    <main id="hero" class="hero" role="main">
+      <div class="hero-card">
+        <h2 class="hero-title">Welcome to House Price Prediction</h2>
+        <p class="hero-sub">A professional and elegant predictor — answer a few quick questions and get an instant estimated price.</p>
+        <button id="startBtn" class="start-btn" aria-label="Start Prediction">Start Prediction</button>
+
+        <div class="hero-image" style="margin-top:18px">
+          <img id="villa-img" src="{{ url_for('static', filename='images/villa.jpeg') }}" alt="House preview">
+        </div>
+      </div>
+    </main>
+
+    <!-- FORM SECTION (hidden initially) -->
+    <section id="formSection" style="display:none;">
+      <div class="card">
+        <div class="steps">
+          <aside class="step-list" aria-hidden="true">
+            <ol>
+              <li data-step="0" class="active">Area</li>
+              <li data-step="1">Bedrooms</li>
+              <li data-step="2">Bathrooms</li>
+              <li data-step="3">Stories</li>
+              <li data-step="4">Main road</li>
+              <li data-step="5">Guest room</li>
+              <li data-step="6">Basement</li>
+              <li data-step="7">Hot water heating</li>
+              <li data-step="8">Airconditioning</li>
+              <li data-step="9">Parking</li>
+              <li data-step="10">Preferred area</li>
+              <li data-step="11">Furnishing status</li>
+            </ol>
+          </aside>
+
+          <div class="form-area">
+            <form id="predictForm" action="/predict" method="post">
+
+              <!-- Step 0: Area -->
+              <div class="form-step active" data-step="0">
+                <label for="area">Area (sq. ft)</label>
+                <div class="number-wrap">
+                  <input type="number" id="area" name="area" step="1" min="0" required placeholder="e.g. 1200">
+                </div>
+                <div class="hint">Enter approximate built-up area in square feet.</div>
+              </div>
+
+              <!-- Step 1: Bedrooms -->
+              <div class="form-step" data-step="1">
+                <label for="bedrooms">Bedrooms</label>
+                <div class="number-wrap">
+                  <input type="number" id="bedrooms" name="bedrooms" step="1" min="0" required placeholder="e.g. 3">
+                </div>
+              </div>
+
+              <!-- Step 2: Bathrooms -->
+              <div class="form-step" data-step="2">
+                <label for="bathrooms">Bathrooms</label>
+                <div class="number-wrap">
+                  <input type="number" id="bathrooms" name="bathrooms" step="1" min="0" required placeholder="e.g. 2">
+                </div>
+              </div>
+
+              <!-- Step 3: Stories -->
+              <div class="form-step" data-step="3">
+                <label for="stories">Stories</label>
+                <div class="number-wrap">
+                  <input type="number" id="stories" name="stories" step="1" min="1" required placeholder="e.g. 1">
+                </div>
+              </div>
+
+              <!-- Step 4: Main road -->
+              <div class="form-step" data-step="4">
+                <label for="mainroad">Main road</label>
+                <div class="select-wrap">
+                  <select id="mainroad" name="mainroad" required>
+                    <option value="" disabled selected>— select —</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Step 5: Guest room -->
+              <div class="form-step" data-step="5">
+                <label for="guestroom">Guest room</label>
+                <div class="select-wrap">
+                  <select id="guestroom" name="guestroom" required>
+                    <option value="" disabled selected>— select —</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Step 6: Basement -->
+              <div class="form-step" data-step="6">
+                <label for="basement">Basement</label>
+                <div class="select-wrap">
+                  <select id="basement" name="basement" required>
+                    <option value="" disabled selected>— select —</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Step 7: Hot water heating -->
+              <div class="form-step" data-step="7">
+                <label for="hotwaterheating">Hot water heating</label>
+                <div class="select-wrap">
+                  <select id="hotwaterheating" name="hotwaterheating" required>
+                    <option value="" disabled selected>— select —</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Step 8: Airconditioning -->
+              <div class="form-step" data-step="8">
+                <label for="airconditioning">Airconditioning</label>
+                <div class="select-wrap">
+                  <select id="airconditioning" name="airconditioning" required>
+                    <option value="" disabled selected>— select —</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Step 9: Parking -->
+              <div class="form-step" data-step="9">
+                <label for="parking">Parking (slots)</label>
+                <div class="number-wrap">
+                  <input type="number" id="parking" name="parking" step="1" min="0" required placeholder="e.g. 1">
+                </div>
+              </div>
+
+              <!-- Step 10: Preferred area -->
+              <div class="form-step" data-step="10">
+                <label for="prefarea">Preferred area</label>
+                <div class="select-wrap">
+                  <select id="prefarea" name="prefarea" required>
+                    <option value="" disabled selected>— select —</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Step 11: Furnishing status -->
+              <div class="form-step" data-step="11">
+                <label for="furnishingstatus">Furnishing status</label>
+                <div class="select-wrap">
+                  <select id="furnishingstatus" name="furnishingstatus" required>
+                    <option value="" disabled selected>— select —</option>
+                    <option value="unfurnished">Unfurnished</option>
+                    <option value="semi-furnished">Semi-Furnished</option>
+                    <option value="furnished">Furnished</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="controls">
+                <div>
+                  <button type="button" id="prevBtn" class="btn">Back</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button type="button" id="nextBtn" class="btn primary">Next</button>
+                  <button type="submit" id="submitBtn" class="btn primary" style="display:none">Predict Price</button>
+                </div>
+              </div>
+
+              <!-- Prediction result box -->
+
+
+
+              <!-- server-rendered result will appear here -->
+              <!-- {% if prediction %} ... {% endif %} left as-is for server templating -->
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+
+    // --- Remove an existing server-rendered `.result-box` if this page load is a full reload ---
+    // This makes sure the old prediction doesn't persist after the user reloads the index page.
+    (function removeResultOnReload(){
+      try {
+        // modern navigation API
+        var navigationEntries = performance.getEntriesByType && performance.getEntriesByType('navigation') || [];
+        var isReload = false;
+        if (navigationEntries.length) {
+          isReload = navigationEntries[0].type === 'reload';
+        } else if (performance.navigation) {
+          // legacy fallback
+          isReload = performance.navigation.type === 1;
+        }
+
+        if (isReload) {
+          var old = document.querySelector('.result-box');
+          if (old) old.remove();
+          // also reset any form fields if you'd like:
+          var form = document.getElementById('predictForm');
+          if (form) form.reset();
+        }
+      } catch(e){
+        // silently ignore — nothing critical if detection fails
+        console.error('reload-detect error', e);
+      }
+    })();
+
+    // Navigation controls
+    const hero = document.getElementById('hero');
+    const formSection = document.getElementById('formSection');
+    const startBtn = document.getElementById('startBtn');
+    const navHome = document.getElementById('navHome');
+    const navStart = document.getElementById('navStart');
+
+    startBtn.addEventListener('click', () => openForm());
+    navStart.addEventListener('click', () => openForm());
+    navHome.addEventListener('click', () => openHome());
+
+    function openForm(){
+      hero.style.display = 'none';
+      formSection.style.display = 'block';
+      navHome.classList.remove('active');
+      navStart.classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    function openHome(){
+      hero.style.display = 'grid';
+      formSection.style.display = 'none';
+      navStart.classList.remove('active');
+      navHome.classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+    // Multi-step logic
+    const steps = Array.from(document.querySelectorAll('.form-step'));
+    const stepListItems = Array.from(document.querySelectorAll('.step-list li'));
+    let current = 0;
+
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showStep(index){
+      steps.forEach(s => s.classList.remove('active'));
+      stepListItems.forEach(li => li.classList.remove('active'));
+      steps[index].classList.add('active');
+      const li = stepListItems.find(x => x.dataset.step === String(index));
+      if(li) li.classList.add('active');
+
+      current = index;
+      prevBtn.style.display = index === 0 ? 'none' : 'inline-block';
+      nextBtn.style.display = index === steps.length -1 ? 'none' : 'inline-block';
+      submitBtn.style.display = index === steps.length -1 ? 'inline-block' : 'none';
+    }
+
+    prevBtn.addEventListener('click', () => showStep(Math.max(0,current-1)));
+    nextBtn.addEventListener('click', () => {
+      // basic validation for current inputs
+      const inputs = steps[current].querySelectorAll('input,select');
+      for(const el of inputs){
+        if(!el.checkValidity()){
+          el.reportValidity();
+          return;
+        }
+      }
+      showStep(Math.min(steps.length-1,current+1));
+    });
+
+    // allow clicking side list on wide screens
+    stepListItems.forEach(li => li.addEventListener('click', () => {
+      const idx = Number(li.dataset.step);
+      if(!isNaN(idx)) showStep(idx);
+    }));
+
+    // initialize
+    showStep(0);
+
+    // if user has a server-rendered prediction, show form section automatically
+    document.addEventListener('DOMContentLoaded', () => {
+      const hasPrediction = document.querySelector('[aria-live]');
+      if(hasPrediction){
+        openForm();
+      }
+
+      // Inject functional up/down arrows into .number-wrap elements (non-destructive)
+      document.querySelectorAll('.number-wrap').forEach(wrap => {
+        const input = wrap.querySelector('input[type="number"]');
+        if(!input) return;
+
+        // If markup already contains an .arrow-box, don't create duplicates
+        if(wrap.querySelector('.arrow-box')) return;
+
+        // create arrow box with two buttons (up/down)
+        const arrowBox = document.createElement('div');
+        arrowBox.className = 'arrow-box';
+        const upBtn = document.createElement('button');
+        upBtn.type = 'button';
+        upBtn.className = 'arrow-up';
+        upBtn.setAttribute('aria-label','Increase');
+        upBtn.innerText = '▲';
+        const downBtn = document.createElement('button');
+        downBtn.type = 'button';
+        downBtn.className = 'arrow-down';
+        downBtn.setAttribute('aria-label','Decrease');
+        downBtn.innerText = '▼';
+
+        arrowBox.appendChild(upBtn);
+        arrowBox.appendChild(downBtn);
+        wrap.appendChild(arrowBox);
+
+        // helper to update disabled state (if min/max exist)
+        function updateDisabled(){
+          if(input.hasAttribute('min')){
+            const min = parseFloat(input.getAttribute('min'));
+            upBtn.removeAttribute('aria-disabled');
+            downBtn.removeAttribute('aria-disabled');
+            if(!isNaN(min) && parseFloat(input.value) <= min) {
+              downBtn.setAttribute('aria-disabled','true');
+            }
+          }
+          if(input.hasAttribute('max')){
+            const max = parseFloat(input.getAttribute('max'));
+            if(!isNaN(max) && parseFloat(input.value) >= max){
+              upBtn.setAttribute('aria-disabled','true');
+            }
+          }
+        }
+
+        // click handlers
+        upBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          if(upBtn.getAttribute('aria-disabled') === 'true') return;
+          input.stepUp();
+          input.dispatchEvent(new Event('input',{bubbles:true}));
+          input.dispatchEvent(new Event('change',{bubbles:true}));
+          updateDisabled();
+        });
+        downBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          if(downBtn.getAttribute('aria-disabled') === 'true') return;
+          input.stepDown();
+          input.dispatchEvent(new Event('input',{bubbles:true}));
+          input.dispatchEvent(new Event('change',{bubbles:true}));
+          updateDisabled();
+        });
+
+        // keyboard support: when input focused, Up/Down arrow keys step
+        input.addEventListener('keydown', (e) => {
+          if(e.key === 'ArrowUp'){ e.preventDefault(); input.stepUp(); updateDisabled(); }
+          if(e.key === 'ArrowDown'){ e.preventDefault(); input.stepDown(); updateDisabled(); }
+        });
+
+        // initialize disabled state
+        updateDisabled();
+      });
+
+
+    });
+    
+
+
+
+  </script>
+</body>
+</html>
